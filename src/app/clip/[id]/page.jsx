@@ -1,37 +1,21 @@
+// src/app/clip/[id]/page.js
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 
-export default function ClipPreviewPage() {
+export default function ClipSuccessPage() {
   const params = useParams();
-  const router = useRouter();
   const [clipData, setClipData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    const fetchClipData = async () => {
-      try {
-        // In a real app, you'd fetch from your database
-        // For now, we'll get from sessionStorage or localStorage
-        const savedClip = sessionStorage.getItem(`clip_${params.id}`);
-
-        if (savedClip) {
-          setClipData(JSON.parse(savedClip));
-        } else {
-          setError("Clip not found. Please create a new clip.");
-        }
-      } catch (err) {
-        setError("Error loading clip data");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClipData();
+    const savedClip = sessionStorage.getItem(`clip_${params.id}`);
+    if (savedClip) {
+      setClipData(JSON.parse(savedClip));
+    }
+    setLoading(false);
   }, [params.id]);
 
   if (loading) {
@@ -45,13 +29,17 @@ export default function ClipPreviewPage() {
     );
   }
 
-  if (error) {
+  if (!clipData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Clip Not Found
+          </h2>
+          <p className="text-gray-600 mb-6">
+            The clip may have expired or was not found.
+          </p>
           <Link
             href="/"
             className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
@@ -77,7 +65,7 @@ export default function ClipPreviewPage() {
             Clip Created Successfully!
           </h1>
           <p className="text-gray-600">
-            Your podcast clip is ready to download
+            Your podcast clip has been saved to cloud storage
           </p>
         </header>
 
@@ -89,6 +77,8 @@ export default function ClipPreviewPage() {
             </h2>
             <p className="text-gray-600">
               Duration: {clipData.duration} seconds
+              {clipData.blobSize &&
+                ` • Size: ${(clipData.blobSize / (1024 * 1024)).toFixed(2)} MB`}
             </p>
           </div>
 
@@ -106,8 +96,8 @@ export default function ClipPreviewPage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href={clipData.downloadUrl}
-              download={`${clipData.clipName}.mp4`}
+              href={clipData.clipUrl}
+              download={clipData.clipFilename || `${clipData.clipName}.webm`}
               className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-colors text-center font-medium"
             >
               📥 Download Clip
@@ -117,7 +107,7 @@ export default function ClipPreviewPage() {
               onClick={() => navigator.clipboard.writeText(clipData.clipUrl)}
               className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors font-medium"
             >
-              📋 Copy Link
+              📋 Copy Direct Link
             </button>
 
             <Link
@@ -129,20 +119,17 @@ export default function ClipPreviewPage() {
           </div>
 
           <div className="mt-6 p-4 bg-gray-100 rounded-lg">
-            <h4 className="font-medium text-gray-700 mb-2">Share this clip:</h4>
-            <div className="flex items-center">
-              <input
-                type="text"
-                value={clipData.clipUrl}
-                readOnly
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none"
-              />
-              <button
-                onClick={() => navigator.clipboard.writeText(clipData.clipUrl)}
-                className="bg-gray-300 px-4 py-2 rounded-r-md hover:bg-gray-400 transition-colors"
-              >
-                Copy
-              </button>
+            <h4 className="font-medium text-gray-700 mb-2">Clip Information</h4>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>
+                <strong>Original file:</strong> {clipData.originalFilename}
+              </p>
+              <p>
+                <strong>Stored as:</strong> {clipData.clipFilename || "N/A"}
+              </p>
+              <p>
+                <strong>Cloud storage:</strong> AWS S3
+              </p>
             </div>
           </div>
         </div>

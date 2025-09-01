@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 export default function VideoClipEditor({ videoUrl, filename, originalName }) {
   const videoRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
   const router = useRouter();
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -13,6 +15,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipName, setClipName] = useState("");
   const [isCreatingClip, setIsCreatingClip] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -34,7 +37,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("timeupdate", handleTimeUpdate);
     };
-  }, []);
+  }, [videoUrl]);
 
   const togglePlayPause = () => {
     const video = videoRef.current;
@@ -71,6 +74,46 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
       .padStart(2, "0")}`;
   };
 
+  const uploadClipToS3 = async (blob, clipFilename) => {
+    try {
+      // Get presigned URL for upload
+      const response = await fetch("/api/clip", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename: clipFilename,
+          fileType: "video/webm",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error("Failed to get upload URL");
+      }
+
+      // Upload the clip to S3
+      const uploadResponse = await fetch(result.url, {
+        method: "PUT",
+        body: blob,
+        headers: {
+          "Content-Type": "video/webm",
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Upload failed");
+      }
+
+      return result.downloadUrl;
+    } catch (error) {
+      console.error("S3 upload error:", error);
+      throw error;
+    }
+  };
+
   const createClip = async () => {
     if (startTime >= endTime) {
       alert("Start time must be before end time");
@@ -83,60 +126,135 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
     }
 
     setIsCreatingClip(true);
+    setProgress(0);
 
     try {
-      const response = await fetch("/api/clip", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          filename,
-          startTime,
-          endTime,
-          clipName: clipName.trim(),
-        }),
+      const video = videoRef.current;
+      if (!video) throw new Error("Video element not found");
+
+      // Create a stream from the video element
+      const stream = video.captureStream();
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "video/webm; codecs=vp9,opus",
+        videoBitsPerSecond: 2500000,
       });
 
-      const result = await response.json();
+      recordedChunksRef.current = [];
 
-      if (result.success) {
-        // Generate a unique ID for this clip
-        const clipId = Date.now().toString();
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
 
-        // Store clip data temporarily (in a real app, you'd save to database)
-        sessionStorage.setItem(
-          `clip_${clipId}`,
-          JSON.stringify({
-            ...result,
+      mediaRecorder.onstop = async () => {
+        try {
+          const blob = new Blob(recordedChunksRef.current, {
+            type: "video/webm",
+          });
+
+          // Generate clip filename
+          const clipId = Date.now();
+          const clipFilename = `clip_${clipId}_${clipName
+            .trim()
+            .replace(/\s+/g, "_")}.webm`;
+
+          // Upload to S3
+          setProgress(80);
+          const downloadUrl = await uploadClipToS3(blob, clipFilename);
+
+          // Store clip data
+          const clipData = {
+            clipUrl: downloadUrl,
             clipName: clipName.trim(),
             originalFilename: filename,
-          })
-        );
+            duration: (endTime - startTime).toFixed(2),
+            blobSize: blob.size,
+            clipFilename: clipFilename,
+          };
 
-        // Redirect to the clip preview page
-        router.push(`/clip/${clipId}`);
-      } else {
-        alert("Failed to create clip: " + result.error);
-      }
+          // console.log("Storing clip data:", clipData);
+          sessionStorage.setItem(`clip_${clipId}`, JSON.stringify(clipData));
+
+          // Redirect to success page
+          router.push(`/clip/${clipId}`);
+        } catch (error) {
+          console.error("Error creating clip:", error);
+          alert("Failed to create clip: " + error.message);
+        }
+      };
+
+      // Set up progress monitoring
+      const totalDuration = endTime - startTime;
+      let elapsed = 0;
+      const progressInterval = setInterval(() => {
+        elapsed += 0.1;
+        const currentProgress = Math.min((elapsed / totalDuration) * 70, 70); // 70% for recording, 30% for upload
+        setProgress(currentProgress);
+      }, 100);
+
+      // Start recording
+      video.currentTime = startTime;
+
+      await new Promise((resolve) => {
+        video.onseeked = resolve;
+        setTimeout(resolve, 500);
+      });
+
+      mediaRecorder.start();
+      video.play();
+      setIsPlaying(true);
+
+      // Stop recording after clip duration
+      setTimeout(() => {
+        clearInterval(progressInterval);
+        mediaRecorder.stop();
+        video.pause();
+        setIsPlaying(false);
+        setProgress(75); // Move to upload phase
+      }, totalDuration * 1000);
     } catch (error) {
       console.error("Error creating clip:", error);
-      alert("Failed to create clip");
-    } finally {
+      alert("Failed to create clip: " + error.message);
       setIsCreatingClip(false);
+      setProgress(0);
     }
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
+      {/* Progress Bar */}
+      {isCreatingClip && (
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <h3 className="font-medium text-blue-800 mb-2">Creating Clip</h3>
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          <p className="text-sm text-blue-600 mt-2">
+            {progress < 100
+              ? `Processing... ${progress.toFixed(1)}%`
+              : "Complete!"}
+          </p>
+          {progress > 70 && progress < 100 && (
+            <p className="text-xs text-blue-500 mt-1">
+              Uploading to cloud storage...
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Video Player */}
       <div className="bg-black rounded-lg overflow-hidden">
         <video
           ref={videoRef}
-          src={videoUrl ? videoUrl : ""}
+          src={videoUrl}
           className="w-full h-auto"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          crossOrigin="anonymous"
         />
       </div>
 
@@ -146,7 +264,8 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
         <div className="flex justify-center">
           <button
             onClick={togglePlayPause}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            disabled={isCreatingClip}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
           >
             {isPlaying ? "⏸️ Pause" : "▶️ Play"}
           </button>
@@ -162,9 +281,9 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
               value={currentTime}
               onChange={(e) => seekTo(parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              disabled={isCreatingClip}
             />
 
-            {/* Start and End markers */}
             <div
               className="absolute top-0 w-1 h-8 bg-green-500 pointer-events-none"
               style={{ left: `${(startTime / duration) * 100}%` }}
@@ -190,13 +309,15 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
         <div className="flex gap-4 justify-center">
           <button
             onClick={setStartPoint}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+            disabled={isCreatingClip}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50 transition-colors"
           >
             Set Start ({formatTime(startTime)})
           </button>
           <button
             onClick={setEndPoint}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+            disabled={isCreatingClip}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
           >
             Set End ({formatTime(endTime)})
           </button>
@@ -218,6 +339,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
               onChange={(e) => setClipName(e.target.value)}
               placeholder="Enter clip name"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isCreatingClip}
             />
           </div>
 

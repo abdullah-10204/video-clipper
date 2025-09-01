@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import PodcastUploader from './components/PodcastUploader';
+import ResumableUploader from './components/ResumableUploader';
 import VideoClipEditor from './components/VideoClipEditor';
-
 
 export default function Home() {
   const [uploadedPodcast, setUploadedPodcast] = useState(null);
@@ -29,7 +28,7 @@ export default function Home() {
         </header>
 
         {!uploadedPodcast ? (
-          <PodcastUploader onUploadSuccess={handleUploadSuccess} />
+          <ResumableUploader onUploadSuccess={handleUploadSuccess} />
         ) : (
           <div>
             <div className="flex justify-between items-center mb-6">

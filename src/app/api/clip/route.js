@@ -1,73 +1,64 @@
-import cloudinary from 'cloudinary';
 import { NextResponse } from 'next/server';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { v4 as uuidv4 } from 'uuid';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
 });
 
 export async function POST(request) {
-    try {
-        const { filename, startTime, endTime, clipName } = await request.json();
+  try {
+    const { filename, fileType } = await request.json();
 
-        if (!filename || startTime === undefined || endTime === undefined) {
-            return NextResponse.json({
-                success: false,
-                error: 'Missing required parameters'
-            });
-        }
-
-        // Upload to Cloudinary first (if not already there)
-        const uploadResult = await cloudinary.v2.uploader.upload(
-            `./public/uploads/${filename}`,
-            {
-                resource_type: 'video',
-                public_id: `podcast_clips/${filename}_${Date.now()}`
-            }
-        );
-
-        // Create clip using Cloudinary's transformation
-        const clipUrl = cloudinary.v2.url(uploadResult.public_id, {
-            resource_type: 'video',
-            transformation: [
-                {
-                    flags: 'splice',
-                    start_offset: startTime,
-                    duration: endTime - startTime
-                },
-                { format: 'mp4' }
-            ],
-            sign_url: true // Generate signed URL for security
-        });
-
-        // Generate a download URL
-        const downloadUrl = cloudinary.v2.url(uploadResult.public_id, {
-            resource_type: 'video',
-            transformation: [
-                {
-                    flags: 'splice',
-                    start_offset: startTime,
-                    duration: endTime - startTime
-                },
-                { format: 'mp4' }
-            ],
-            flags: 'attachment', // This triggers download instead of streaming
-            sign_url: true
-        });
-
-        return NextResponse.json({
-            success: true,
-            clipUrl,
-            downloadUrl,
-            clipName: clipName || 'clip',
-            duration: (endTime - startTime).toFixed(2)
-        });
-    } catch (error) {
-        console.error('Cloudinary error:', error);
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to create clip: ' + error.message
-        });
+    if (!filename) {
+      return NextResponse.json({
+        success: false,
+        error: 'Filename required'
+      });
     }
+
+    // Generate a unique filename if not provided
+    const finalFilename = filename || `clip_${uuidv4()}.webm`;
+
+    // Create presigned URL for upload
+    const putCommand = new PutObjectCommand({
+      Bucket: process.env.AWS_CLIP_BUCKET,
+      Key: finalFilename,
+      ContentType: fileType
+    });
+
+    const uploadUrl = await getSignedUrl(s3Client, putCommand, {
+      expiresIn: 3600 // 1 hour
+    });
+
+    // Also create a presigned URL for download
+    const getCommand = new GetObjectCommand({
+      Bucket: process.env.AWS_CLIP_BUCKET,
+      Key: finalFilename
+    });
+
+    const downloadUrl = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 86400 // 24 hours
+    });
+
+    return NextResponse.json({
+      success: true,
+      url: uploadUrl,
+      downloadUrl: downloadUrl,
+      filename: finalFilename
+    });
+
+  } catch (error) {
+    console.error('Clip upload error:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to generate upload URL'
+    });
+  }
 }
