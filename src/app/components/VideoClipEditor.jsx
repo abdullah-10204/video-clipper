@@ -1,9 +1,16 @@
+// src/app/components/VideoClipEditor.jsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function VideoClipEditor({ videoUrl, filename, originalName }) {
+export default function VideoClipEditor({
+  videoUrl,
+  filename,
+  originalName,
+  podcastId,
+  onClipCreated,
+}) {
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -14,6 +21,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
   const [endTime, setEndTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipName, setClipName] = useState("");
+  const [clipDescription, setClipDescription] = useState("");
   const [isCreatingClip, setIsCreatingClip] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -107,9 +115,36 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
         throw new Error("Upload failed");
       }
 
-      return result.downloadUrl;
+      return {
+        downloadUrl: result.downloadUrl,
+        s3Key: clipFilename,
+      };
     } catch (error) {
       console.error("S3 upload error:", error);
+      throw error;
+    }
+  };
+
+  const saveClipToDatabase = async (clipData) => {
+    try {
+      const token = localStorage.getItem("auth-token");
+      const response = await fetch("/api/clips", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(clipData),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "Failed to save clip");
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Database save error:", error);
       throw error;
     }
   };
@@ -122,6 +157,11 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
 
     if (!clipName.trim()) {
       alert("Please enter a name for the clip");
+      return;
+    }
+
+    if (!podcastId) {
+      alert("No podcast ID provided");
       return;
     }
 
@@ -160,27 +200,42 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
             .replace(/\s+/g, "_")}.webm`;
 
           // Upload to S3
-          setProgress(80);
-          const downloadUrl = await uploadClipToS3(blob, clipFilename);
+          setProgress(70);
+          const uploadResult = await uploadClipToS3(blob, clipFilename);
 
-          // Store clip data
+          // Save to database
+          setProgress(90);
           const clipData = {
-            clipUrl: downloadUrl,
-            clipName: clipName.trim(),
-            originalFilename: filename,
+            podcastId: podcastId,
+            title: clipName.trim(),
+            description: clipDescription.trim(),
+            filename: clipFilename,
+            s3Key: uploadResult.s3Key,
             duration: (endTime - startTime).toFixed(2),
-            blobSize: blob.size,
-            clipFilename: clipFilename,
+            fileSize: blob.size,
+            startTime: startTime,
+            endTime: endTime,
+            downloadUrl: uploadResult.downloadUrl,
+            status: "processed",
           };
 
-          // console.log("Storing clip data:", clipData);
-          sessionStorage.setItem(`clip_${clipId}`, JSON.stringify(clipData));
+          await saveClipToDatabase(clipData);
 
-          // Redirect to success page
-          router.push(`/clip/${clipId}`);
+          setProgress(100);
+
+          // Notify parent component
+          if (onClipCreated) {
+            onClipCreated();
+          }
+
+          // Show success message
+          alert("Clip created successfully!");
         } catch (error) {
           console.error("Error creating clip:", error);
           alert("Failed to create clip: " + error.message);
+        } finally {
+          setIsCreatingClip(false);
+          setProgress(0);
         }
       };
 
@@ -189,7 +244,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
       let elapsed = 0;
       const progressInterval = setInterval(() => {
         elapsed += 0.1;
-        const currentProgress = Math.min((elapsed / totalDuration) * 70, 70); // 70% for recording, 30% for upload
+        const currentProgress = Math.min((elapsed / totalDuration) * 60, 60); // 60% for recording
         setProgress(currentProgress);
       }, 100);
 
@@ -211,7 +266,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
         mediaRecorder.stop();
         video.pause();
         setIsPlaying(false);
-        setProgress(75); // Move to upload phase
+        setProgress(65); // Move to upload phase
       }, totalDuration * 1000);
     } catch (error) {
       console.error("Error creating clip:", error);
@@ -225,24 +280,21 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
     <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
       {/* Progress Bar */}
       {isCreatingClip && (
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h3 className="font-medium text-blue-800 mb-2">Creating Clip</h3>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="bg-purple-50/10 backdrop-blur-sm p-4 rounded-lg border border-purple-500/20">
+          <h3 className="font-medium text-purple-300 mb-2">Creating Clip</h3>
+          <div className="w-full bg-gray-700 rounded-full h-2.5">
             <div
-              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-purple-500 to-blue-500 h-2.5 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
-          <p className="text-sm text-blue-600 mt-2">
-            {progress < 100
-              ? `Processing... ${progress.toFixed(1)}%`
-              : "Complete!"}
+          <p className="text-sm text-purple-400 mt-2">
+            {progress < 60
+              ? `Recording... ${progress.toFixed(1)}%`
+              : progress < 95
+              ? `Uploading... ${progress.toFixed(1)}%`
+              : "Saving... 100%"}
           </p>
-          {progress > 70 && progress < 100 && (
-            <p className="text-xs text-blue-500 mt-1">
-              Uploading to cloud storage...
-            </p>
-          )}
         </div>
       )}
 
@@ -265,7 +317,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
           <button
             onClick={togglePlayPause}
             disabled={isCreatingClip}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg disabled:opacity-50 transition-colors"
           >
             {isPlaying ? "⏸️ Pause" : "▶️ Play"}
           </button>
@@ -280,7 +332,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
               max={duration}
               value={currentTime}
               onChange={(e) => seekTo(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
               disabled={isCreatingClip}
             />
 
@@ -294,7 +346,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
             />
           </div>
 
-          <div className="flex justify-between text-sm text-gray-600">
+          <div className="flex justify-between text-sm text-gray-400">
             <span>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
@@ -310,35 +362,54 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
           <button
             onClick={setStartPoint}
             disabled={isCreatingClip}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50 transition-colors"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
             Set Start ({formatTime(startTime)})
           </button>
           <button
             onClick={setEndPoint}
             disabled={isCreatingClip}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
             Set End ({formatTime(endTime)})
           </button>
         </div>
 
         {/* Clip Creation */}
-        <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-lg border border-gray-700/50 space-y-4">
           <div>
             <label
               htmlFor="clipName"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-gray-300 mb-2"
             >
-              Clip Name
+              Clip Title *
             </label>
             <input
               type="text"
               id="clipName"
               value={clipName}
               onChange={(e) => setClipName(e.target.value)}
-              placeholder="Enter clip name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter clip title"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+              disabled={isCreatingClip}
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="clipDescription"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
+              Description (Optional)
+            </label>
+            <textarea
+              id="clipDescription"
+              value={clipDescription}
+              onChange={(e) => setClipDescription(e.target.value)}
+              placeholder="Enter clip description"
+              rows="3"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 resize-none"
               disabled={isCreatingClip}
             />
           </div>
@@ -347,7 +418,7 @@ export default function VideoClipEditor({ videoUrl, filename, originalName }) {
             <button
               onClick={createClip}
               disabled={isCreatingClip || !clipName.trim()}
-              className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium px-6 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isCreatingClip ? "Creating Clip..." : "Create Clip"}
             </button>
