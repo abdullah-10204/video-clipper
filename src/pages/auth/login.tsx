@@ -20,8 +20,19 @@ export default function LoginPage() {
     if (res?.error) {
       setError("Invalid email or password");
     } else {
-      // redirect based on role (we’ll wire this later properly)
-      router.push("/");
+      // fetch session to check role
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+
+      if (session.role === "STUDIO") {
+        router.push("/studio/dashboard");
+      } else if (session.role === "AGENCY") {
+        router.push("/agency/dashboard");
+      } else if (session.role === "EDITOR") {
+        router.push("/editor/dashboard");
+      } else {
+        router.push("/");
+      }
     }
   };
 
