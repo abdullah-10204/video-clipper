@@ -1,5 +1,8 @@
+// src/pages/api/auth/[...nextauth].ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { prisma } from "../../../lib/prisma";
+import bcrypt from "bcryptjs";
 
 export default NextAuth({
   providers: [
@@ -10,56 +13,27 @@ export default NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        // TODO: Replace with real DB lookup
-        const { email, password } = credentials as {
-          email: string;
-          password: string;
-        };
+        if (!credentials) return null;
+        const { email, password } = credentials;
 
-        // Temporary hardcoded users for testing
-        const users = [
-          {
-            id: "1",
-            email: "studio@test.com",
-            password: "1234",
-            role: "STUDIO",
-          },
-          {
-            id: "2",
-            email: "agency@test.com",
-            password: "1234",
-            role: "AGENCY",
-          },
-          {
-            id: "3",
-            email: "editor@test.com",
-            password: "1234",
-            role: "EDITOR",
-          },
-        ];
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return null;
 
-        const user = users.find(
-          (u) => u.email === email && u.password === password
-        );
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) return null;
 
-        if (user) {
-          return user; // NextAuth adds this to session
-        }
-        return null;
+        // return a minimal object — NextAuth attaches this to the token
+        return { id: user.id.toString(), email: user.email, role: user.role };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
-      }
+      if (user) token.role = (user as any).role;
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        (session as any).role = token.role;
-      }
+      if (token) (session as any).role = token.role;
       return session;
     },
   },
