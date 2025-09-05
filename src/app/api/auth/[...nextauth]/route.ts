@@ -1,9 +1,10 @@
+// src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import clientPromise from "../../../lib/mongodb";
+import clientPromise from "@/lib/mongodb";
 
-export default NextAuth({
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -13,17 +14,14 @@ export default NextAuth({
       },
       async authorize(credentials) {
         if (!credentials) return null;
-        const { email, password } = credentials;
-
         const client = await clientPromise;
         const db = client.db("video-clipper");
-
-        const user = await db.collection("users").findOne({ email });
+        const user = await db
+          .collection("users")
+          .findOne({ email: credentials.email });
         if (!user) return null;
-
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) return null;
-
+        const valid = await bcrypt.compare(credentials.password, user.password);
+        if (!valid) return null;
         return { id: user._id.toString(), email: user.email, role: user.role };
       },
     }),
@@ -34,8 +32,12 @@ export default NextAuth({
       return token;
     },
     async session({ session, token }) {
-      if (token) (session as any).role = token.role;
+      if (token?.role) (session as any).role = token.role;
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      // always default to baseUrl (we'll redirect on client after login to proper dashboard)
+      return baseUrl;
     },
   },
   pages: {
@@ -43,3 +45,5 @@ export default NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
 });
+
+export { handler as GET, handler as POST };

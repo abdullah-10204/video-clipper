@@ -1,54 +1,32 @@
-'use client';
-
-import { useState } from 'react';
-import ResumableUploader from './components/ResumableUploader';
-import VideoClipEditor from './components/VideoClipEditor';
+// src/app/page.tsx
+import Link from "next/link";
 
 export default function Home() {
-  const [uploadedPodcast, setUploadedPodcast] = useState(null);
-
-  const handleUploadSuccess = (data) => {
-    setUploadedPodcast(data);
-  };
-
-  const handleNewUpload = () => {
-    setUploadedPodcast(null);
-  };
-
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Podcast Clip Editor
-          </h1>
-          <p className="text-gray-600">
-            Upload your podcast and create clips with precise start and end points
-          </p>
-        </header>
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-900 via-purple-900 to-black text-white px-6">
+      <div className="text-center max-w-2xl">
+        <h1 className="text-5xl md:text-6xl font-extrabold mb-4">
+          🎙️ PodClip Pro
+        </h1>
+        <p className="text-lg md:text-xl text-gray-300 mb-10">
+          Upload your podcasts and create edited clips — collaborate with
+          agencies and editors.
+        </p>
 
-        {!uploadedPodcast ? (
-          <ResumableUploader onUploadSuccess={handleUploadSuccess} />
-        ) : (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-semibold text-gray-800">
-                Editing: {uploadedPodcast.originalName}
-              </h2>
-              <button
-                onClick={handleNewUpload}
-                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
-              >
-                Upload New File
-              </button>
-            </div>
-            <VideoClipEditor
-              videoUrl={uploadedPodcast.url}
-              filename={uploadedPodcast.filename}
-              originalName={uploadedPodcast.originalName}
-            />
-          </div>
-        )}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/auth/signup"
+            className="px-8 py-4 bg-indigo-600 rounded-2xl text-lg font-semibold shadow-lg hover:bg-indigo-700"
+          >
+            Sign Up
+          </Link>
+          <Link
+            href="/auth/login"
+            className="px-8 py-4 bg-white/10 rounded-2xl text-lg font-semibold hover:bg-white/20 border border-white/10"
+          >
+            Already a member? Log In
+          </Link>
+        </div>
       </div>
     </main>
   );
