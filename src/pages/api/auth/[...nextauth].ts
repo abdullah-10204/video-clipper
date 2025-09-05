@@ -1,8 +1,7 @@
-// src/pages/api/auth/[...nextauth].ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
+import clientPromise from "../../../lib/mongodb";
 
 export default NextAuth({
   providers: [
@@ -16,14 +15,16 @@ export default NextAuth({
         if (!credentials) return null;
         const { email, password } = credentials;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const client = await clientPromise;
+        const db = client.db("video-clipper");
+
+        const user = await db.collection("users").findOne({ email });
         if (!user) return null;
 
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return null;
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) return null;
 
-        // return a minimal object — NextAuth attaches this to the token
-        return { id: user.id.toString(), email: user.email, role: user.role };
+        return { id: user._id.toString(), email: user.email, role: user.role };
       },
     }),
   ],
