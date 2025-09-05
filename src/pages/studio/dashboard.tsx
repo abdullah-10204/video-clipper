@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { signOut } from "next-auth/react";
 
 export default function StudioDashboard() {
   const { data: session, status } = useSession();
@@ -22,6 +23,19 @@ export default function StudioDashboard() {
     <div>
       <h1>Hi Studio, welcome!</h1>
       <p>Logged in as: {session?.user?.email}</p>
+      <button
+        onClick={() => signOut({ callbackUrl: "/auth/login" })}
+        style={{
+          marginTop: "20px",
+          padding: "8px 16px",
+          background: "red",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+        }}
+      >
+        Logout
+      </button>
     </div>
   );
 }
