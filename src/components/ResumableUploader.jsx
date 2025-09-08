@@ -291,7 +291,7 @@ export default function ResumableUploader({
           <div className="space-y-4">
             <div className="text-6xl text-gray-400">🎧</div>
             <div>
-              <p className="text-lg font-medium text-gray-700 mb-2">
+              <p className="text-lg font-medium text-white-200 mb-2">
                 Drop your podcast file here or click to browse
               </p>
               <p className="text-sm text-gray-500 mt-2">
