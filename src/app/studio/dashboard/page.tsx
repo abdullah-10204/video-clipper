@@ -1,28 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ResumableUploader from "@/components/ResumableUploader";
 import VideoClipEditor from "@/components/VideoClipEditor";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function StudioDashboard() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [uploadedPodcast, setUploadedPodcast] = useState<any>(null);
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (!session) router.push("/auth/login");
-    else if ((session as any).role !== "STUDIO") {
-      const role = (session as any).role?.toLowerCase() || "";
+    if (loading) return;
+
+    if (!user) {
+      router.push("/auth/login");
+    } else if (user.role !== "STUDIO") {
+      const role = user.role?.toLowerCase() || "";
       router.push(`/${role}/dashboard`);
     }
-  }, [session, status, router]);
+  }, [user, loading, router]);
 
-  if (status === "loading")
+  if (loading) {
     return <div className="text-center mt-10 text-white">Loading...</div>;
+  }
 
   const handleUploadSuccess = (data: any) => {
     setUploadedPodcast(data);

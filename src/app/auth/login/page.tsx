@@ -1,32 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function LoginPage() {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await signIn("credentials", {
-      redirect: false,
-      email,
-      password,
-    });
-    if (res?.error) {
-      alert("Invalid credentials");
+    const res = await login(email, password);
+    if (!res.success) {
+      alert(res.error || "Login failed");
       return;
     }
 
-    const s = await fetch("/api/auth/session")
-      .then((r) => r.json())
-      .catch(() => null);
-
-    const role = s?.role;
+    const role = res?.user?.role;
     if (role === "STUDIO") router.push("/studio/dashboard");
     else if (role === "AGENCY") router.push("/agency/dashboard");
     else if (role === "EDITOR") router.push("/editor/dashboard");

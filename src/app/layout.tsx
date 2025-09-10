@@ -1,21 +1,17 @@
 // src/app/layout.tsx
 import "./globals.css";
-import Providers from "@/components/Providers";
+import { AuthProvider } from "@/lib/hooks/useAuth";
 
 export const metadata = {
   title: "PodClip Pro",
   description: "Edit your podcasts and create clips",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
