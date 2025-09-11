@@ -46,7 +46,8 @@ export function withAuth(handler, allowedRoles = []) {
           }
         );
       }
-
+      // Normalize role to lowercase
+      decoded.role = decoded.role?.toLowerCase();
       // Check role permissions
       if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {
         return new Response(
