@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function StudioDashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading, authFetch } = useAuth();
   const router = useRouter();
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
@@ -25,13 +25,13 @@ export default function StudioDashboard() {
   }, [user, loading]);
 
   const fetchPodcasts = async () => {
-    const res = await fetch("/api/podcasts");
+    const res = await authFetch("/api/podcasts");
     const data = await res.json();
     if (data.success) setPodcasts(data.podcasts);
   };
 
   const fetchClips = async () => {
-    const res = await fetch("/api/clips");
+    const res = await authFetch("/api/clips");
     const data = await res.json();
     if (data.success) setClips(data.clips);
   };

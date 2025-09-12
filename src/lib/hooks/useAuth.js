@@ -99,6 +99,15 @@ export function AuthProvider({ children }) {
     register,
     logout,
     loading,
+    authFetch: async (url, options = {}) => {
+      const token = localStorage.getItem("auth-token");
+      const headers = {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+      return fetch(url, { ...options, headers });
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
