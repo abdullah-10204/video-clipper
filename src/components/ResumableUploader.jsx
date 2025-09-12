@@ -3,6 +3,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
+import HomeButton from "@/components/HomeButton";
 
 export default function ResumableUploader({
   onUploadSuccess,
@@ -282,6 +283,9 @@ export default function ResumableUploader({
 
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
+      <div className="mb-4 flex justify-end">
+        <HomeButton />
+      </div>
       <div
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isUploading

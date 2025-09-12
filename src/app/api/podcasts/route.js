@@ -77,6 +77,7 @@ export const GET = withAuth(
 );
 
 // Create new podcast (studio only)
+
 export const POST = withAuth(
   async (request) => {
     try {
@@ -102,10 +103,7 @@ export const POST = withAuth(
     } catch (error) {
       console.error("Create podcast error:", error);
       return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to create podcast",
-        },
+        { success: false, error: "Failed to create podcast" },
         { status: 500 }
       );
     }

@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import HomeButton from "@/components/HomeButton";
 
 export default function VideoClipEditor({
   videoUrl,
@@ -297,7 +298,9 @@ export default function VideoClipEditor({
           </p>
         </div>
       )}
-
+      <div className="mb-4 flex justify-end">
+        <HomeButton />
+      </div>
       {/* Video Player */}
       <div className="bg-black rounded-lg overflow-hidden">
         <video
