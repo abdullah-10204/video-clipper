@@ -96,11 +96,32 @@ export default function StudioDashboard() {
                   <h3 className="text-lg font-medium">
                     {c.title || "Untitled Clip"}
                   </h3>
-                  <video
-                    src={c.url}
-                    controls
-                    className="mt-2 rounded-lg"
-                  ></video>
+
+                  {/* Clip preview */}
+                  {c.downloadUrl ? (
+                    <video
+                      src={c.downloadUrl}
+                      controls
+                      className="mt-2 rounded-lg w-full"
+                    />
+                  ) : (
+                    <p className="text-gray-400 text-sm mt-2">
+                      No video available
+                    </p>
+                  )}
+
+                  {/* Download button */}
+                  {c.downloadUrl && (
+                    <a
+                      href={c.downloadUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-3 px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-md text-sm"
+                    >
+                      Download
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
