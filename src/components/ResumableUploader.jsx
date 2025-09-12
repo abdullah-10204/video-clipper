@@ -51,6 +51,36 @@ export default function ResumableUploader({
     return await response.json();
   };
 
+  // NEW: Save podcast metadata to DB and return the podcastId
+  const savePodcastToDB = async ({
+    filename,
+    originalName,
+    size,
+    fileType,
+  }) => {
+    const token = localStorage.getItem("auth-token");
+    if (!token) {
+      return { success: false, error: "No auth token (not logged in)" };
+    }
+
+    const response = await fetch("/api/podcasts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        filename,
+        originalName,
+        fileSize: size,
+        fileType,
+        s3Key: filename,
+      }),
+    });
+
+    return await response.json();
+  };
+
   const abortUpload = async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -123,15 +153,12 @@ export default function ResumableUploader({
       let uploadedBytes = 0;
       const uploadedParts = [];
 
-      // Upload parts sequentially to avoid overwhelming the connection
       for (let index = 0; index < urlsResponse.presignedUrls.length; index++) {
         const url = urlsResponse.presignedUrls[index];
         const partNumber = partNumbers[index];
         const start = index * chunkSize;
         const end = Math.min(start + chunkSize, file.size);
         const chunk = file.slice(start, end);
-
-        // console.log(`Uploading part ${partNumber}/${totalChunks}...`);
 
         const response = await fetch(url, {
           method: "PUT",
@@ -149,33 +176,25 @@ export default function ResumableUploader({
           );
         }
 
-        // Get the ETag from the response headers (S3 returns this)
         const etag = response.headers.get("ETag");
         if (!etag) {
           throw new Error(`No ETag received for part ${partNumber}`);
         }
 
-        // console.log(`Part ${partNumber} uploaded with ETag: ${etag}`);
-
-        // Store the part info with correct ETag
         uploadedParts.push({
           PartNumber: partNumber,
-          ETag: etag, // Use the actual ETag from S3 response
+          ETag: etag,
         });
 
-        // Update progress
         uploadedBytes += chunk.size;
         const progress = (uploadedBytes / file.size) * 100;
         setUploadProgress(progress);
       }
 
-      // console.log("All parts uploaded, completing multipart upload...");
-      // console.log("Parts to complete:", uploadedParts);
-
       // Complete multipart upload with actual ETags
       const completeResponse = await completeMultipartUpload(
         multipartResponse.uploadId,
-        uploadedParts, // Use the parts with real ETags
+        uploadedParts,
         filename
       );
 
@@ -187,19 +206,31 @@ export default function ResumableUploader({
         );
       }
 
-      // console.log("Upload completed successfully");
-
       // Get playback URL
       const playbackResponse = await getPlaybackUrl(filename);
       if (!playbackResponse.success)
         throw new Error("Failed to get playback URL");
 
+      // NEW: save podcast to DB to get a Mongo podcastId
+      const saveResp = await savePodcastToDB({
+        filename,
+        originalName: file.name,
+        size: file.size,
+        fileType: file.type,
+      });
+
+      if (!saveResp.success) {
+        throw new Error(saveResp.error || "Failed to save podcast");
+      }
+
+      // success: pass podcastId back up to parent
       onUploadSuccess({
         filename,
         url: playbackResponse.url,
         originalName: file.name,
         size: file.size,
         uploadId: multipartResponse.uploadId,
+        podcastId: saveResp.podcastId, // <-- important: real Mongo ID string
       });
     } catch (error) {
       if (error.name !== "AbortError") {

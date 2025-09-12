@@ -69,7 +69,10 @@ export default function StudioDashboard() {
               videoUrl={uploadedPodcast.url}
               filename={uploadedPodcast.filename}
               originalName={uploadedPodcast.originalName}
-              podcastId={uploadedPodcast.uploadId}
+              podcastId={uploadedPodcast.podcastId}
+              onClipCreated={(clip) => {
+                console.log("Clip created:", clip);
+              }}
             />
           </div>
         )}
