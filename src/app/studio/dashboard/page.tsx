@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -11,31 +11,20 @@ export default function StudioDashboard() {
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      router.push("/auth/login");
-    } else if (user.role !== "STUDIO") {
-      const role = user.role?.toLowerCase() || "";
-      router.push(`/${role}/dashboard`);
-    } else {
-      fetchPodcasts();
-      fetchClips();
-    }
-  }, [user, loading]);
-
-  const fetchPodcasts = async () => {
+  // ✅ stable fetch functions
+  const fetchPodcasts = useCallback(async () => {
     const res = await authFetch("/api/podcasts");
     const data = await res.json();
     if (data.success) setPodcasts(data.podcasts);
-  };
+  }, [authFetch]);
 
-  const fetchClips = async () => {
+  const fetchClips = useCallback(async () => {
     const res = await authFetch("/api/clips");
     const data = await res.json();
     if (data.success) setClips(data.clips);
-  };
-  // ✅ First load: auth + initial fetch
+  }, [authFetch]);
+
+  // ✅ First load
   useEffect(() => {
     if (loading) return;
     if (!user) {
@@ -47,9 +36,9 @@ export default function StudioDashboard() {
       fetchPodcasts();
       fetchClips();
     }
-  }, [user, loading]);
+  }, [user, loading, router, fetchPodcasts, fetchClips]);
 
-  // ✅ Re-fetch every time page/tab becomes visible again
+  // ✅ Re-fetch on tab focus/visibility change
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && user) {
@@ -61,7 +50,8 @@ export default function StudioDashboard() {
     document.addEventListener("visibilitychange", handleVisibility);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user]);
+  }, [user, fetchPodcasts, fetchClips]);
+
   if (loading) {
     return <div className="text-center mt-10 text-white">Loading...</div>;
   }
