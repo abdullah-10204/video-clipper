@@ -10,18 +10,29 @@ export default function StudioDashboard() {
   const router = useRouter();
   const [podcasts, setPodcasts] = useState<any[]>([]);
   const [clips, setClips] = useState<any[]>([]);
+  const [podcastsLoading, setPodcastsLoading] = useState(true);
+  const [clipsLoading, setClipsLoading] = useState(true);
 
-  // ✅ stable fetch functions
   const fetchPodcasts = useCallback(async () => {
-    const res = await authFetch("/api/podcasts");
-    const data = await res.json();
-    if (data.success) setPodcasts(data.podcasts);
+    setPodcastsLoading(true);
+    try {
+      const res = await authFetch("/api/podcasts");
+      const data = await res.json();
+      if (data.success) setPodcasts(data.podcasts);
+    } finally {
+      setPodcastsLoading(false);
+    }
   }, [authFetch]);
 
   const fetchClips = useCallback(async () => {
-    const res = await authFetch("/api/clips");
-    const data = await res.json();
-    if (data.success) setClips(data.clips);
+    setClipsLoading(true);
+    try {
+      const res = await authFetch("/api/clips");
+      const data = await res.json();
+      if (data.success) setClips(data.clips);
+    } finally {
+      setClipsLoading(false);
+    }
   }, [authFetch]);
 
   // ✅ First load
@@ -75,7 +86,9 @@ export default function StudioDashboard() {
         {/* Podcasts */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold mb-4">Your Podcasts</h2>
-          {podcasts.length === 0 ? (
+          {podcastsLoading ? (
+            <p className="text-gray-400 animate-pulse">Loading podcasts...</p>
+          ) : podcasts.length === 0 ? (
             <p className="text-gray-400">No podcasts uploaded yet.</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
@@ -100,7 +113,9 @@ export default function StudioDashboard() {
         {/* Clips */}
         <section>
           <h2 className="text-2xl font-semibold mb-4">Your Clips</h2>
-          {clips.length === 0 ? (
+          {clipsLoading ? (
+            <p className="text-gray-400 animate-pulse">Loading clips...</p>
+          ) : clips.length === 0 ? (
             <p className="text-gray-400">No clips created yet.</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
@@ -112,8 +127,6 @@ export default function StudioDashboard() {
                   <h3 className="text-lg font-medium">
                     {c.title || "Untitled Clip"}
                   </h3>
-
-                  {/* Clip preview */}
                   {c.downloadUrl ? (
                     <video
                       src={c.downloadUrl}
@@ -125,8 +138,6 @@ export default function StudioDashboard() {
                       No video available
                     </p>
                   )}
-
-                  {/* Download button */}
                   {c.downloadUrl && (
                     <a
                       href={c.downloadUrl}
