@@ -298,7 +298,7 @@ export default function VideoClipEditor({
           </p>
         </div>
       )}
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-start">
         <HomeButton />
       </div>
       {/* Video Player */}

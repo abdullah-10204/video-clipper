@@ -283,7 +283,7 @@ export default function ResumableUploader({
 
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-start">
         <HomeButton />
       </div>
       <div

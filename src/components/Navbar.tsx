@@ -10,7 +10,7 @@ export default function Navbar() {
       {user && (
         <button
           onClick={logout}
-          className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium shadow-md transition"
+          className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium shadow-md transition cursor-pointer"
         >
           Logout
         </button>

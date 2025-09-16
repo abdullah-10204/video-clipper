@@ -35,7 +35,33 @@ export default function StudioDashboard() {
     const data = await res.json();
     if (data.success) setClips(data.clips);
   };
+  // ✅ First load: auth + initial fetch
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.push("/auth/login");
+    } else if (user.role !== "STUDIO") {
+      const role = user.role?.toLowerCase() || "";
+      router.push(`/${role}/dashboard`);
+    } else {
+      fetchPodcasts();
+      fetchClips();
+    }
+  }, [user, loading]);
 
+  // ✅ Re-fetch every time page/tab becomes visible again
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && user) {
+        fetchPodcasts();
+        fetchClips();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [user]);
   if (loading) {
     return <div className="text-center mt-10 text-white">Loading...</div>;
   }
@@ -50,7 +76,7 @@ export default function StudioDashboard() {
           </h1>
           <button
             onClick={() => router.push("/studio/upload")}
-            className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg shadow transition"
+            className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg shadow transition cursor-pointer"
           >
             Upload Podcast
           </button>
@@ -117,7 +143,7 @@ export default function StudioDashboard() {
                       download
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block mt-3 px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-md text-sm"
+                      className="inline-block mt-3 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-md text-sm"
                     >
                       Download
                     </a>

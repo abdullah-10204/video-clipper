@@ -13,7 +13,7 @@ export default function HomeButton() {
   return (
     <Link
       href={dashboardPath}
-      className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg shadow transition"
+      className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 font-medium rounded-lg shadow transition cursor-pointer"
     >
       Home
     </Link>
